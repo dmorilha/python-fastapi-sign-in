@@ -14,8 +14,8 @@ The `username` was used instead of a random salt to limit interactions between c
 
  - Implement a _JWT_ cookie (or some other mechanism) allowing an authenticated user to navigate through access controlled parts of the website.
  - Increase the password's hashing complexity.
- - Implement the repeated password logic during the Sign-Up process.
  - Better HTML templating, with the goal of avoiding unnecessary duplications.
+ - Better error handling.
 
 ## SETUP
 ```

@@ -1,9 +1,7 @@
+from contextlib import closing
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, PlainTextResponse
-
 import sqlite3
-
-database_file = 'users.database'
 
 app = FastAPI()
 
@@ -24,6 +22,7 @@ def sign_up_view() -> HTMLResponse:
     <script src="/assets/js/password"></script>
 </head>
 <body>
+    <div align="right"><b>Sign Up</b> | <a href="/sign-in">Sign In</a></div>
     <center>
     <form id="form" action="sign-up" method="post">
         <table border="1">
@@ -85,11 +84,14 @@ def sign_up_view() -> HTMLResponse:
 
 @app.post('/sign-up')
 def sign_up_control(username : str = Form(...), password : str = Form(...)):
-    connection = sqlite3.connect(database_file)
-    connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password));
-    connection.commit()
-    connection.close()
-    return {'username': username, 'password': password}
+    response = {'error': 'unknown error'}
+    with closing(sqlite3.connect('users.database')) as connection:
+        try:
+            connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password))
+            response = {'username': username, 'password': password}
+        except sqlite3.IntegrityError:
+            response = {'error': 'username already exists'}
+    return response
 
 @app.get('/')
 @app.get('/sign-in')
@@ -100,6 +102,7 @@ def sign_in_view() -> HTMLResponse:
     <script src="/assets/js/password"></script>
 </head>
 <body>
+    <div align="right"><a href="/sign-up">Sign Up</a> | <b>Sign In</b></div>
     <center>
     <form id="form" action="sign-in" method="post">
         <table border="1">
@@ -145,10 +148,11 @@ def sign_in_view() -> HTMLResponse:
 
 @app.post('/sign-in')
 def sign_in_control(username : str = Form(...), password : str = Form(...)):
-    response = {'error': 'user not found'}
-    connection = sqlite3.connect(database_file)
-    record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ? AND password_hash = ?;', (username, password)).fetchone()
-    if record is not None:
-        response = {'username': record[0], 'password': record[1]}
-    connection.close()
+    response = {'error': 'unknown error'}
+    with closing(sqlite3.connect('users.database')) as connection:
+        record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ? AND password_hash = ?;', (username, password)).fetchone()
+        if record is not None:
+            response = {'username': record[0], 'password': record[1]}
+        else:
+            response = {'error': 'user not found'}
     return response
