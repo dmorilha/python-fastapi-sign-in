@@ -7,8 +7,8 @@ database_file = 'users.database'
 
 app = FastAPI()
 
-@app.get('/js/password')
-def js_password() -> str:
+@app.get('/assets/js/password')
+def assets_js_password() -> str:
     return PlainTextResponse('''function hash_password_v1(username, password, cb) {
 const data = new Uint8Array((username + password).split('').map(el => el.charCodeAt(0)));
 crypto.subtle.digest('SHA-512', data).then(function(digest){ /*TODO: increase complexity*/
@@ -21,14 +21,14 @@ def sign_up_view() -> HTMLResponse:
     return HTMLResponse('''<html>
 <head>
     <title>Sign Up</title>
-    <script src="/js/password"></script>
+    <script src="/assets/js/password"></script>
 </head>
 <body>
     <center>
     <form id="form" action="sign-up" method="post">
         <table border="1">
             <thead>
-                <tr><td align="center" colspan="2"><b>Sign Up</b></td></tr>
+                <tr><td align="center" colspan="3"><b>Sign Up</b></td></tr>
             </thead>
             <tr>
                 <td><b>username</b></td>
@@ -37,18 +37,19 @@ def sign_up_view() -> HTMLResponse:
             <tr>
                 <td><b>password</b></td>
                 <td>
-                    <input id="user-password" type="password"></input>
+                    <input id="user-typed-password" type="password"></input>
                     <input id="password" name="password" type="hidden"</input>
                 </td>
             </tr>
             <tr>
                 <td><b>re-type your password</b></td>
                 <td><input id="user-retyped-password" type="password"></input></td>
+                <td id="password-message" width="200"></td>
             </tr>
             <tr>
-                <td colspan="2" align="right">
-                    <input type="submit" value="Sign Up"/></input>
-                    <input type="reset" value="Reset"/></input>
+                <td colspan="3" align="right">
+                    <input type="submit" value="Sign Up"></input>
+                    <input type="reset" value="Reset"></input>
                 </td>
             </tr>
         </table>
@@ -59,14 +60,24 @@ def sign_up_view() -> HTMLResponse:
 (function(){
   const form = document.getElementById('form'),
     password = document.getElementById('password'),
+    password_message = document.getElementById('password-message'),
     username = document.getElementById('username'),
-    userPassword = document.getElementById('user-password');
+    user_retyped_password = document.getElementById('user-retyped-password'),
+    user_typed_password = document.getElementById('user-typed-password');
+  function check_passwords_match() { return user_typed_password.value === user_retyped_password.value; }
   form.onsubmit = function(e) {
-    hash_password_v1(username.value, userPassword.value, function(digest) {
-      password.value = digest;
-      form.submit();
-    });
-    e.prevetDefault();
+    if (check_passwords_match()) {
+      hash_password_v1(username.value, user_typed_password.value, function(digest) {
+        password.value = digest;
+        form.submit();
+      });
+    } else {
+      window.alert('Passwords do not match. Please fix it before clicking submit.');
+    }
+    e.preventDefault();
+  };
+  user_typed_password.onkeyup = user_retyped_password.onkeyup = function() {
+    password_message.innerText = check_passwords_match() ? '' : 'passwords do not match';
   };
 })();
 </script>
@@ -86,7 +97,7 @@ def sign_in_view() -> HTMLResponse:
     return HTMLResponse('''<html>
 <head>
     <title>Sign In</title>
-    <script src="/js/password"></script>
+    <script src="/assets/js/password"></script>
 </head>
 <body>
     <center>
