@@ -9,7 +9,7 @@ app = FastAPI()
 
 @app.get('/js/password')
 def js_password() -> str:
-    return PlainTextResponse('''function hash_password(username, password, cb) {
+    return PlainTextResponse('''function hash_password_v1(username, password, cb) {
 const data = new Uint8Array((username + password).split('').map(el => el.charCodeAt(0)));
 crypto.subtle.digest('SHA-512', data).then(function(digest){ /*TODO: increase complexity*/
     const final = '$1$' + (new Uint8Array(digest)).toBase64() + '$';
@@ -62,7 +62,7 @@ def sign_up_view() -> HTMLResponse:
     username = document.getElementById('username'),
     userPassword = document.getElementById('user-password');
   form.onsubmit = function(e) {
-    hash_password(username.value, userPassword.value, function(digest) {
+    hash_password_v1(username.value, userPassword.value, function(digest) {
       password.value = digest;
       form.submit();
     });
@@ -122,7 +122,7 @@ def sign_in_view() -> HTMLResponse:
     userPassword = document.getElementById('user-password');
     username = document.getElementById('username'),
   form.onsubmit = function(e) {
-    hash_password(username.value, userPassword.value, function(digest) {
+    hash_password_v1(username.value, userPassword.value, function(digest) {
       password.value = digest;
       form.submit();
     });
