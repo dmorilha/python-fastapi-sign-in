@@ -1,8 +1,13 @@
+from base64 import urlsafe_b64encode
 from contextlib import closing
+from hashlib import sha1, sha256
+from hmac import compare_digest, digest
+from time import time
+from urllib.parse import parse_qs, urlsplit, urlunsplit
+import sqlite3
+
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
-from time import time
-import sqlite3
 
 class FailLockList:
   '''
@@ -40,9 +45,41 @@ class FailLockList:
     else:
       self.dictionary[username] = [time()]
 
+class MyUrl:
+  '''
+  A class to handle various URL trickeries
+  The sign / verify pair of methods append a HMAC SHA-1 signature to the fragment portion of the URL
+  to attest the URL was signed by the same secret.
+  The fragment portion of the URL is not signed, and therefore removed from the signing process.
+  '''
+  def __init__(self, url : str):
+    self.url_components = urlsplit(url)
+
+  def without_fragment(self) -> str:
+    url_components = self.url_components
+    return url_components._replace(fragment='').geturl()
+
+  def sign(self, secret) -> str:
+    url : str = self.without_fragment()
+    signature = urlsafe_b64encode(digest(secret, bytes(url, 'ascii'), sha1))
+    return url + '#s=' + signature.decode('ascii')
+
+  def verify(self, secret) -> bool:
+    fragment_components = parse_qs(self.url_components.fragment)
+    if 's' in fragment_components:
+      s = fragment_components['s']
+      if 0 < len(s):
+        url = self.without_fragment()
+        signature = urlsafe_b64encode(digest(secret, bytes(url, 'ascii'), sha1))
+        for value in s:
+          if compare_digest(signature, bytes(value, 'ascii')):
+            return True
+    return False
+      
 # globals
 app = FastAPI()
 fail_lock_list = FailLockList()
+my_hmac_secret = b'vovodepijama'
 
 @app.get('/assets/js/password')
 def assets_js_password() -> str:
@@ -64,6 +101,7 @@ def sign_up_view() -> HTMLResponse:
   <div align="right"><b>Sign Up</b> | <a href="/sign-in">Sign In</a></div>
   <center>
   <form id="form" action="sign-up" method="post">
+    <input id="password" name="password" type="hidden"</input>
     <table border="1">
       <thead>
         <tr><td align="center" colspan="3"><b>Sign Up</b></td></tr>
@@ -76,7 +114,6 @@ def sign_up_view() -> HTMLResponse:
         <td><b>password</b></td>
         <td>
           <input id="user-typed-password" type="password"></input>
-          <input id="password" name="password" type="hidden"</input>
         </td>
       </tr>
       <tr>
@@ -129,7 +166,7 @@ def sign_up_control(username : str = Form(...), password : str = Form(...)) -> J
     try:
       result = connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password, ))
       response.render({'username': username, 'password': password})
-      print('user "%s" has been successfully created.' % (username, ))
+      print(' -> user "%s" has been successfully created.' % (username, ))
     except sqlite3.IntegrityError:
       response.render({'error': 'username already exists'})
   return response
@@ -146,6 +183,8 @@ def sign_in_view() -> HTMLResponse:
   <div align="right"><a href="/sign-up">Sign Up</a> | <b>Sign In</b></div>
   <center>
   <form id="form" action="sign-in" method="post">
+    <input name="redirect" value="/welcome#s=0wIOSFMoPCLCrXv0FHus3NfH_7c=" type="hidden"></input>
+    <input id="password" name="password" type="hidden"></input>
     <table border="1">
       <thead>
         <tr><td align="center" colspan="2"><b>Sign In</b></td></tr>
@@ -158,7 +197,6 @@ def sign_in_view() -> HTMLResponse:
         <td><b>password</b></td>
         <td>
           <input id="user-password" type="password"></input>
-          <input id="password" name="password" type="hidden"></input>
         </td>
       </tr>
       <tr>
@@ -188,16 +226,19 @@ def sign_in_view() -> HTMLResponse:
 </html>''')
 
 @app.post('/sign-in')
-def sign_in_control(username : str = Form(...), password : str = Form(...)) -> JSONResponse:
+def sign_in_control(username : str = Form(...), password : str = Form(...), redirect : str = Form(...)) -> JSONResponse:
   response = JSONResponse({'error': 'user not found'})
   with closing(sqlite3.connect('users.database')) as connection:
     record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ?;', (username,)).fetchone()
     if record is not None and record[1] == password and fail_lock_list.check(username):
-      # RedirectResponse here redirects w/ a POST rather than a GET.
       #TODO: Add a JWT cookie as part of the response
-      return RedirectResponse('/welcome') 
-    else:
-      fail_lock_list.add(username)
+      url = MyUrl(redirect)
+      if url.verify(my_hmac_secret):
+        # RedirectResponse here redirects w/ a POST rather than a GET.
+        return RedirectResponse(url.without_fragment()) 
+      else:
+        print(' -> redirect URL signature verification failed.')
+  fail_lock_list.add(username)
   return response
 
 #TODO: Decode the JWT cookie and extract the username.
