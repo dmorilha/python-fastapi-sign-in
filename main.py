@@ -1,6 +1,6 @@
 from contextlib import closing
 from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from time import time
 import sqlite3
 
@@ -121,16 +121,17 @@ def sign_up_view() -> HTMLResponse:
 </script>
 </html>''')
 
+# TODO: the proper response is a redirect
 @app.post('/sign-up')
-def sign_up_control(username : str = Form(...), password : str = Form(...)):
-  response = {'error': 'unknown error'}
+def sign_up_control(username : str = Form(...), password : str = Form(...)) -> JSONResponse:
+  response = JSONResponse()
   with closing(sqlite3.connect('users.database', autocommit = True)) as connection:
     try:
       result = connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password, ))
-      response = {'username': username, 'password': password}
+      response.render({'username': username, 'password': password})
       print('user "%s" has been successfully created.' % (username, ))
     except sqlite3.IntegrityError:
-      response = {'error': 'username already exists'}
+      response.render({'error': 'username already exists'})
   return response
 
 @app.get('/')
@@ -187,15 +188,24 @@ def sign_in_view() -> HTMLResponse:
 </html>''')
 
 @app.post('/sign-in')
-def sign_in_control(username : str = Form(...), password : str = Form(...)):
-  response = {'error': 'unknown error'}
+def sign_in_control(username : str = Form(...), password : str = Form(...)) -> JSONResponse:
+  response = JSONResponse({'error': 'user not found'})
   with closing(sqlite3.connect('users.database')) as connection:
     record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ?;', (username,)).fetchone()
     if record is not None and record[1] == password and fail_lock_list.check(username):
-      response = {'username': record[0], 'password': record[1]}
-
+      # RedirectResponse here redirects w/ a POST rather than a GET.
+      #TODO: Add a JWT cookie as part of the response
+      return RedirectResponse('/welcome') 
     else:
-      response = {'error': 'user not found'}
       fail_lock_list.add(username)
-
   return response
+
+#TODO: Decode the JWT cookie and extract the username.
+@app.get('/welcome')
+@app.post('/welcome')
+def welcome_view() -> HTMLResponse:
+  return HTMLResponse('''<html>
+<head><title>Welcome</title></head>
+<div align="right"><a href="/sign-up">Sign Up</a> | <a href="/sign-in">Sign In</a></div>
+<body><center><h1>Welcome "You"!</h1></center></body>
+</html>''')
