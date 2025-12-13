@@ -1,9 +1,48 @@
 from contextlib import closing
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, PlainTextResponse
+from time import time
 import sqlite3
 
+class FailLockList:
+  '''
+  A list to track users who entered invalid credentials "too many times".
+  Parameters are:
+   - the number of failed attempts before the user gets locked.
+   - the lock duration in seconds.
+  '''
+  def __init__(self, times : int = 3, lock_duration : int = 10 * 60):
+    self.dictionary = {}
+    self.times = times
+    self.lock_duration = lock_duration
+
+  def check(self, username : str) -> bool:
+    if username in self.dictionary:
+      # if the last failed attempt was within the lock duration, add a new updated entry.
+      failed_attempts = self.dictionary[username]
+      if self.times <= len(failed_attempts) and self.lock_duration > time() - failed_attempts[-1]:
+        print(' -> user "%s" has been locked' % (username, ))
+        self.add(username)
+        return False
+      else:
+        del self.dictionary[username]
+    return True
+
+  def clean(self):
+    now = time()
+    for (key, value) in self.dictionary:
+      if self.lock_duration < now - value[-1]:
+        del self.dictionary[key]
+
+  def add(self, username : str):
+    if username in self.dictionary:
+      self.dictionary[username].append(time())
+    else:
+      self.dictionary[username] = [time()]
+
+# globals
 app = FastAPI()
+fail_lock_list = FailLockList()
 
 @app.get('/assets/js/password')
 def assets_js_password() -> str:
@@ -85,10 +124,11 @@ def sign_up_view() -> HTMLResponse:
 @app.post('/sign-up')
 def sign_up_control(username : str = Form(...), password : str = Form(...)):
   response = {'error': 'unknown error'}
-  with closing(sqlite3.connect('users.database')) as connection:
+  with closing(sqlite3.connect('users.database', autocommit = True)) as connection:
     try:
-      connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password))
+      result = connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password, ))
       response = {'username': username, 'password': password}
+      print('user "%s" has been successfully created.' % (username, ))
     except sqlite3.IntegrityError:
       response = {'error': 'username already exists'}
   return response
@@ -148,11 +188,14 @@ def sign_in_view() -> HTMLResponse:
 
 @app.post('/sign-in')
 def sign_in_control(username : str = Form(...), password : str = Form(...)):
-    response = {'error': 'unknown error'}
-    with closing(sqlite3.connect('users.database')) as connection:
-        record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ? AND password_hash = ?;', (username, password)).fetchone()
-        if record is not None:
-            response = {'username': record[0], 'password': record[1]}
-        else:
-            response = {'error': 'user not found'}
-    return response
+  response = {'error': 'unknown error'}
+  with closing(sqlite3.connect('users.database')) as connection:
+    record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ?;', (username,)).fetchone()
+    if record is not None and record[1] == password and fail_lock_list.check(username):
+      response = {'username': record[0], 'password': record[1]}
+
+    else:
+      response = {'error': 'user not found'}
+      fail_lock_list.add(username)
+
+  return response
