@@ -7,7 +7,7 @@ app = FastAPI()
 
 @app.get('/assets/js/password')
 def assets_js_password() -> str:
-    return PlainTextResponse('''function hash_password_v1(username, password, cb) {
+  return PlainTextResponse('''function hash_password_v1(username, password, cb) {
 const data = new Uint8Array((username + password).split('').map(el => el.charCodeAt(0)));
 crypto.subtle.digest('SHA-512', data).then(function(digest){ /*TODO: increase complexity*/
     const final = '$1$' + (new Uint8Array(digest)).toBase64() + '$';
@@ -16,44 +16,44 @@ crypto.subtle.digest('SHA-512', data).then(function(digest){ /*TODO: increase co
 
 @app.get('/sign-up')
 def sign_up_view() -> HTMLResponse:
-    return HTMLResponse('''<html>
+  return HTMLResponse('''<html>
 <head>
-    <title>Sign Up</title>
-    <script src="/assets/js/password"></script>
+  <title>Sign Up</title>
+  <script src="/assets/js/password"></script>
 </head>
 <body>
-    <div align="right"><b>Sign Up</b> | <a href="/sign-in">Sign In</a></div>
-    <center>
-    <form id="form" action="sign-up" method="post">
-        <table border="1">
-            <thead>
-                <tr><td align="center" colspan="3"><b>Sign Up</b></td></tr>
-            </thead>
-            <tr>
-                <td><b>username</b></td>
-                <td><input id="username" name="username" type="text"></input></td>
-            </tr>
-            <tr>
-                <td><b>password</b></td>
-                <td>
-                    <input id="user-typed-password" type="password"></input>
-                    <input id="password" name="password" type="hidden"</input>
-                </td>
-            </tr>
-            <tr>
-                <td><b>re-type your password</b></td>
-                <td><input id="user-retyped-password" type="password"></input></td>
-                <td id="password-message" width="200"></td>
-            </tr>
-            <tr>
-                <td colspan="3" align="right">
-                    <input type="submit" value="Sign Up"></input>
-                    <input type="reset" value="Reset"></input>
-                </td>
-            </tr>
-        </table>
-    </form>
-    </center>
+  <div align="right"><b>Sign Up</b> | <a href="/sign-in">Sign In</a></div>
+  <center>
+  <form id="form" action="sign-up" method="post">
+    <table border="1">
+      <thead>
+        <tr><td align="center" colspan="3"><b>Sign Up</b></td></tr>
+      </thead>
+      <tr>
+        <td><b>username</b></td>
+        <td><input id="username" name="username" type="text"></input></td>
+      </tr>
+      <tr>
+        <td><b>password</b></td>
+        <td>
+          <input id="user-typed-password" type="password"></input>
+          <input id="password" name="password" type="hidden"</input>
+        </td>
+      </tr>
+      <tr>
+        <td><b>re-type your password</b></td>
+        <td><input id="user-retyped-password" type="password"></input></td>
+        <td id="password-message" width="200"></td>
+      </tr>
+      <tr>
+        <td colspan="3" align="right">
+          <input type="submit" value="Sign Up"></input>
+          <input type="reset" value="Reset"></input>
+        </td>
+      </tr>
+    </table>
+  </form>
+  </center>
 </body>
 <script>
 (function(){
@@ -84,50 +84,50 @@ def sign_up_view() -> HTMLResponse:
 
 @app.post('/sign-up')
 def sign_up_control(username : str = Form(...), password : str = Form(...)):
-    response = {'error': 'unknown error'}
-    with closing(sqlite3.connect('users.database')) as connection:
-        try:
-            connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password))
-            response = {'username': username, 'password': password}
-        except sqlite3.IntegrityError:
-            response = {'error': 'username already exists'}
-    return response
+  response = {'error': 'unknown error'}
+  with closing(sqlite3.connect('users.database')) as connection:
+    try:
+      connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password))
+      response = {'username': username, 'password': password}
+    except sqlite3.IntegrityError:
+      response = {'error': 'username already exists'}
+  return response
 
 @app.get('/')
 @app.get('/sign-in')
 def sign_in_view() -> HTMLResponse:
-    return HTMLResponse('''<html>
+  return HTMLResponse('''<html>
 <head>
-    <title>Sign In</title>
-    <script src="/assets/js/password"></script>
+  <title>Sign In</title>
+  <script src="/assets/js/password"></script>
 </head>
 <body>
-    <div align="right"><a href="/sign-up">Sign Up</a> | <b>Sign In</b></div>
-    <center>
-    <form id="form" action="sign-in" method="post">
-        <table border="1">
-            <thead>
-                <tr><td align="center" colspan="2"><b>Sign In</b></td></tr>
-            </thead>
-            <tr>
-                <td><b>username</b></td>
-                <td><input id="username" name="username" type="text"></input></td>
-            </tr>
-            <tr>
-                <td><b>password</b></td>
-                <td>
-                    <input id="user-password" type="password"></input>
-                    <input id="password" name="password" type="hidden"></input>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" align="right">
-                    <input type="submit" value="Sign In"/></input>
-                </td>
-            </tr>
-        </table>
-    </form>
-    </center>
+  <div align="right"><a href="/sign-up">Sign Up</a> | <b>Sign In</b></div>
+  <center>
+  <form id="form" action="sign-in" method="post">
+    <table border="1">
+      <thead>
+        <tr><td align="center" colspan="2"><b>Sign In</b></td></tr>
+      </thead>
+      <tr>
+        <td><b>username</b></td>
+        <td><input id="username" name="username" type="text"></input></td>
+      </tr>
+      <tr>
+        <td><b>password</b></td>
+        <td>
+          <input id="user-password" type="password"></input>
+          <input id="password" name="password" type="hidden"></input>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2" align="right">
+          <input type="submit" value="Sign In"/></input>
+        </td>
+      </tr>
+    </table>
+  </form>
+  </center>
 </body>
 <script>
 (function(){
