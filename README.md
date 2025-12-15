@@ -10,12 +10,27 @@ The `username` was used instead of a random salt to limit interactions between c
 
 **NOTE:** A more advanced solution can be implemented increasing the hash time complexity to diminish the chances of a successful brute force attack, as done by the standard `bcrypt` algorithm.
 
-### OTHER TO-DOS
+## FAIL LOCK LIST
 
- - Implement a _JWT_ cookie (or some other mechanism) allowing an authenticated user to navigate through access controlled parts of the website.
- - Increase the password's hashing complexity.
- - Better HTML templating, with the goal of avoiding unnecessary duplications.
+If a known or unknown username tries to sign in and fails 3 or more times while the server is up, the user is put into a _Fail Lock_ list for 10 minutes starting from his last attempt. If the same username succeeds before his third failed attempt his entry is removed.
+
+**TO-DO:** The Client's IP could be blocked altogether as well.
+
+##  SIGNED REDIRECT
+
+Redirects are SHA1 HMAC signed, the secret is stored in the python's file.
+
+## SESSION
+
+A Session object is generated upon a username's successful sign in. An HTTP cookie is set containing a randomly generated `UUID4` representing a session id, and the `username`.
+
+### OTHER TO-DOS
+ - Better HTML templating, with one of the goals to avoid unnecessary mark-up duplications.
  - Better error handling.
+ - Define a workflow to allow users to reset their passwords.
+ - Increase the password's hashing complexity.
+ - Safely persist secrets in the local disk, some special storage.
+ - ...
 
 ## SETUP
 ```
