@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 import sqlite3
 
 from fastapi import FastAPI, Form
+from fastapi.requests import Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 class FailLockList:
@@ -160,15 +161,18 @@ def sign_up_view() -> HTMLResponse:
 
 # TODO: the proper response is a redirect
 @app.post('/sign-up')
-def sign_up_control(username : str = Form(...), password : str = Form(...)) -> JSONResponse:
-  response = JSONResponse()
+async def sign_up_control(request : Request) -> JSONResponse:
+  response = JSONResponse({'error': 'unknown error'})
   with closing(sqlite3.connect('users.database', autocommit = True)) as connection:
     try:
+      form = await request._get_form()
+      password = form['password']
+      username = form['username']
       result = connection.cursor().execute('INSERT INTO users (username, password_hash) VALUES (?, ?);', (username, password, ))
-      response.render({'username': username, 'password': password})
+      response = JSONResponse({'username': username, 'password': password})
       print(' -> user "%s" has been successfully created.' % (username, ))
     except sqlite3.IntegrityError:
-      response.render({'error': 'username already exists'})
+      response = JSONResponse({'error': 'username already exists'})
   return response
 
 @app.get('/')
@@ -226,25 +230,32 @@ def sign_in_view() -> HTMLResponse:
 </html>''')
 
 @app.post('/sign-in')
-def sign_in_control(username : str = Form(...), password : str = Form(...), redirect : str = Form(...)) -> JSONResponse:
+async def sign_in_control(request : Request) -> JSONResponse:
   response = JSONResponse({'error': 'user not found'})
   with closing(sqlite3.connect('users.database')) as connection:
-    record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ?;', (username,)).fetchone()
-    if record is not None and record[1] == password and fail_lock_list.check(username):
-      #TODO: Add a JWT cookie as part of the response
-      url = MyUrl(redirect)
-      if url.verify(my_hmac_secret):
-        # RedirectResponse here redirects w/ a POST rather than a GET.
-        return RedirectResponse(url.without_fragment()) 
-      else:
-        print(' -> redirect URL signature verification failed.')
+    try:
+        form = await request._get_form()
+        username = form['username']
+        record = connection.cursor().execute('SELECT username, password_hash FROM users WHERE username = ?;', (username,)).fetchone()
+        password = form['password']
+        if record is not None and record[1] == password and fail_lock_list.check(username):
+          #TODO: Add a JWT cookie as part of the response
+          redirect = form['redirect']
+          url = MyUrl(redirect)
+          if url.verify(my_hmac_secret):
+            # RedirectResponse here redirects w/ a POST rather than a GET.
+            return RedirectResponse(url.without_fragment()) 
+          else:
+            print(' -> redirect URL signature verification failed.')
+    except:
+      pass
   fail_lock_list.add(username)
   return response
 
 #TODO: Decode the JWT cookie and extract the username.
 @app.get('/welcome')
 @app.post('/welcome')
-def welcome_view() -> HTMLResponse:
+async def welcome_view(request : Request) -> HTMLResponse:
   return HTMLResponse('''<html>
 <head><title>Welcome</title></head>
 <div align="right"><a href="/sign-up">Sign Up</a> | <a href="/sign-in">Sign In</a></div>
